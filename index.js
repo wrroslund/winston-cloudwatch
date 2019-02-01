@@ -30,6 +30,7 @@ var WinstonCloudWatch = function(options) {
   this.uploadRate = options.uploadRate || 2000;
   this.logEvents = [];
   this.errorHandler = options.errorHandler;
+  this.submitting = Promise.resolve(true);
 
   if (this.proxyServer) {
     AWS.config.update({
@@ -79,7 +80,9 @@ WinstonCloudWatch.prototype.log = function (info, callback) {
   // as Winston is about to end the process
   clearInterval(this.intervalId);
   this.intervalId = null;
-  this.submit(callback);
+  
+  // this.submit(callback);
+  this.submitAsync(callback);
 };
 
 WinstonCloudWatch.prototype.add = function(log) {
@@ -97,7 +100,13 @@ WinstonCloudWatch.prototype.add = function(log) {
   if (!self.intervalId) {
     debug('creating interval');
     self.intervalId = setInterval(function() {
-      self.submit(function(err) {
+      // self.submit(function(err) {
+      //   if (err) {
+      //     debug('error during submit', err, true);
+      //     self.errorHandler ? self.errorHandler(err) : console.error(err);
+      //   }
+      // });
+      self.submitAsync(function(err) {
         if (err) {
           debug('error during submit', err, true);
           self.errorHandler ? self.errorHandler(err) : console.error(err);
@@ -106,7 +115,21 @@ WinstonCloudWatch.prototype.add = function(log) {
     }, self.uploadRate);
   }
 };
-
+WinstonCloudWatch.prototype.submitAsync = function(callback) {
+  self.submitting = self.submitting.then(function(){
+    return new Promise(function(resolve, reject){
+      try {
+      self.submit(function(){
+        callback();
+        resolve(true);
+      });
+    } catch (err) {
+      reject(err);
+    }  
+    });
+  });
+  return self.submitting;
+}
 WinstonCloudWatch.prototype.submit = function(callback) {
   var groupName = typeof this.logGroupName === 'function' ?
     this.logGroupName() : this.logGroupName;
@@ -117,7 +140,6 @@ WinstonCloudWatch.prototype.submit = function(callback) {
   if (isEmpty(this.logEvents)) {
     return callback();
   }
-
   cloudWatchIntegration.upload(
     this.cloudwatchlogs,
     groupName,
@@ -126,12 +148,26 @@ WinstonCloudWatch.prototype.submit = function(callback) {
     retentionInDays,
     callback
   );
-};
 
+  // cloudWatchIntegration.upload(
+  //   this.cloudwatchlogs,
+  //   groupName,
+  //   streamName,
+  //   this.logEvents,
+  //   retentionInDays,
+  //   callback
+  // );
+};
+WinstonCloudWatch.prototype.kthxbyeAsync = function(callback) {
+  clearInterval(this.intervalId);
+  this.intervalId = null;
+  return self.submitAsync(callback);
+};
 WinstonCloudWatch.prototype.kthxbye = function(callback) {
   clearInterval(this.intervalId);
   this.intervalId = null;
-  this.submit(callback);
+  // this.submit(callback);
+  self.submitAsync(callback)
 };
 
 winston.transports.CloudWatch = WinstonCloudWatch;
