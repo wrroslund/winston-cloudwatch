@@ -116,10 +116,11 @@ WinstonCloudWatch.prototype.add = function(log) {
   }
 };
 WinstonCloudWatch.prototype.submitAsync = function(callback) {
-  self.submitting = self.submitting.then(function(){
+  var self = this;
+  this.submitting = this.submitting.then(function(){
     return new Promise(function(resolve, reject){
       try {
-      self.submit(function(){
+        self.submit(function(){
         callback();
         resolve(true);
       });
@@ -161,13 +162,13 @@ WinstonCloudWatch.prototype.submit = function(callback) {
 WinstonCloudWatch.prototype.kthxbyeAsync = function(callback) {
   clearInterval(this.intervalId);
   this.intervalId = null;
-  return self.submitAsync(callback);
+  return this.submitAsync(callback);
 };
 WinstonCloudWatch.prototype.kthxbye = function(callback) {
   clearInterval(this.intervalId);
   this.intervalId = null;
   // this.submit(callback);
-  self.submitAsync(callback)
+  this.submitAsync(callback)
 };
 
 winston.transports.CloudWatch = WinstonCloudWatch;
